@@ -4,9 +4,6 @@ import { IncomingWhatsAppMessage } from '@/lib/twilio';
 
 export async function POST(request: NextRequest) {
   try {
-    // Verificar que la petición viene de Twilio (opcional pero recomendado)
-    const twilioSignature = request.headers.get('x-twilio-signature');
-    
     // Obtener datos del formulario
     const formData = await request.formData();
     
@@ -71,7 +68,7 @@ export async function POST(request: NextRequest) {
 }
 
 // Endpoint para verificación del webhook (GET)
-export async function GET(request: NextRequest) {
+export async function GET() {
   return NextResponse.json({ 
     status: 'WhatsApp webhook activo',
     timestamp: new Date().toISOString(),

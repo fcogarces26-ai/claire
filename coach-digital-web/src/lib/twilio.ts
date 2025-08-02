@@ -1,4 +1,4 @@
-import { Twilio } from 'twilio';
+import twilio from 'twilio';
 
 // Configuración del cliente Twilio
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -9,7 +9,7 @@ if (!accountSid || !authToken || !twilioPhoneNumber) {
   throw new Error('Faltan variables de entorno de Twilio');
 }
 
-export const twilioClient = new Twilio(accountSid, authToken);
+export const twilioClient = twilio(accountSid, authToken);
 
 // Tipos para mensajes de WhatsApp
 export interface WhatsAppMessage {
@@ -33,7 +33,7 @@ export interface IncomingWhatsAppMessage {
 }
 
 // Función para enviar mensaje de WhatsApp
-export async function sendWhatsAppMessage(message: WhatsAppMessage): Promise<any> {
+export async function sendWhatsAppMessage(message: WhatsAppMessage): Promise<unknown> {
   try {
     const result = await twilioClient.messages.create({
       from: message.from || twilioPhoneNumber,

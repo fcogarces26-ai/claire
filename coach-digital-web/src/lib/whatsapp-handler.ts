@@ -13,7 +13,7 @@ export interface ConversationMessage {
   message_type: string; // 'incoming' | 'outgoing' - REQUERIDO
   content: string;
   sender?: 'user' | 'coach';
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   created_at?: string;
   message_sid?: string;
 }
@@ -23,7 +23,7 @@ export interface UserProfile {
   phone_number?: string;
   name?: string;
   whatsapp_verified: boolean;
-  coaching_preferences?: any;
+  coaching_preferences?: Record<string, unknown>;
   timezone?: string;
   created_at: string;
 }
@@ -34,7 +34,7 @@ export async function handleIncomingMessage(twilioData: IncomingWhatsAppMessage)
     const phoneNumber = extractPhoneNumber(twilioData.From);
     
     // Buscar o crear usuario
-    let user = await findOrCreateUser(phoneNumber, twilioData.ProfileName);
+    const user = await findOrCreateUser(phoneNumber, twilioData.ProfileName);
     
     // Guardar mensaje del usuario en la BD
     await saveMessage({

@@ -39,6 +39,7 @@ export default function WhatsAppVerification() {
       const data = await response.json();
       setResult(data);
     } catch (error) {
+      console.error('Error verificando número:', error);
       setResult({
         valid: false,
         error: 'Error de conexión. Intenta nuevamente.'
