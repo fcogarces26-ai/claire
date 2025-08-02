@@ -14,7 +14,10 @@ interface UserSettings {
   directness_level?: number
   communication_tone?: string
   presence_level?: string
-  reminder_schedule?: any
+  reminder_schedule?: {
+    days: string[]
+    timeRange: { start: string; end: string }
+  }
 }
 
 interface User {
