@@ -17,6 +17,11 @@ interface UserSettings {
   reminder_schedule?: any
 }
 
+interface User {
+  id: string
+  email?: string
+}
+
 interface UserProfile {
   phone_number: string | null
   whatsapp_verified: boolean
@@ -24,7 +29,7 @@ interface UserProfile {
 }
 
 export default function Settings() {
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [settings, setSettings] = useState<UserSettings>({
     reminder_frequency: 'daily',
     reminder_time: '09:00:00',
@@ -67,7 +72,7 @@ export default function Settings() {
         return
       }
       
-      setUser(user)
+      setUser(user as User)
 
       // Cargar configuraciones
       const { data: settingsData } = await supabase
@@ -98,6 +103,11 @@ export default function Settings() {
   }, [supabase, router])
 
   const handleSaveSettings = async () => {
+    if (!user) {
+      setMessage('Error: Usuario no autenticado')
+      return
+    }
+
     setSaving(true)
     setMessage('')
 
@@ -162,6 +172,16 @@ export default function Settings() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Cargando configuración...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600">Redirigiendo...</p>
         </div>
       </div>
     )

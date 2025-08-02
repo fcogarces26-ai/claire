@@ -7,6 +7,11 @@ import { formatDate } from '@/lib/utils'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
+interface User {
+  id: string
+  email?: string
+}
+
 interface MemoryNote {
   id: string
   title: string
@@ -24,7 +29,7 @@ interface MemoryStats {
 }
 
 export default function Memory() {
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [memories, setMemories] = useState<MemoryNote[]>([])
   const [stats, setStats] = useState<MemoryStats>({
     totalNotes: 0,
@@ -55,7 +60,7 @@ export default function Memory() {
         return
       }
       
-      setUser(user)
+      setUser(user as User)
 
       // Cargar todas las notas de memoria
       const { data: memoryData, error } = await supabase
@@ -102,6 +107,16 @@ export default function Memory() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Cargando tu memoria...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600">Redirigiendo...</p>
         </div>
       </div>
     )
