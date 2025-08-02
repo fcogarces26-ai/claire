@@ -84,7 +84,8 @@ export async function POST(request: NextRequest) {
 // Endpoint para verificación del webhook (GET)
 export async function GET() {
   return NextResponse.json({ 
-    status: 'WhatsApp webhook activo',
+    status: 'WhatsApp webhook activo y funcionando',
     timestamp: new Date().toISOString(),
+    version: '1.0.1'
   });
 }
