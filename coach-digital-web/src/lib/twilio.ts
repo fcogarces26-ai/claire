@@ -5,11 +5,13 @@ const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const twilioPhoneNumber = process.env.TWILIO_WHATSAPP_NUMBER; // formato: whatsapp:+1234567890
 
-if (!accountSid || !authToken || !twilioPhoneNumber) {
-  throw new Error('Faltan variables de entorno de Twilio');
-}
+// Cliente de Twilio (solo se inicializa si las variables están disponibles)
+export const twilioClient = accountSid && authToken ? twilio(accountSid, authToken) : null;
 
-export const twilioClient = twilio(accountSid, authToken);
+// Función para verificar si Twilio está configurado
+export function isTwilioConfigured(): boolean {
+  return !!(accountSid && authToken && twilioPhoneNumber);
+}
 
 // Tipos para mensajes de WhatsApp
 export interface WhatsAppMessage {
@@ -34,6 +36,10 @@ export interface IncomingWhatsAppMessage {
 
 // Función para enviar mensaje de WhatsApp
 export async function sendWhatsAppMessage(message: WhatsAppMessage): Promise<unknown> {
+  if (!twilioClient || !twilioPhoneNumber) {
+    throw new Error('Twilio no está configurado. Verifica las variables de entorno.');
+  }
+
   try {
     const result = await twilioClient.messages.create({
       from: message.from || twilioPhoneNumber,
@@ -52,6 +58,11 @@ export async function sendWhatsAppMessage(message: WhatsAppMessage): Promise<unk
 
 // Función para verificar número de teléfono
 export async function verifyPhoneNumber(phoneNumber: string): Promise<boolean> {
+  if (!twilioClient) {
+    console.warn('Twilio no está configurado. Retornando verificación simulada.');
+    return true; // En desarrollo, simular que es válido
+  }
+
   try {
     const lookup = await twilioClient.lookups.v1.phoneNumbers(phoneNumber).fetch();
     return lookup.phoneNumber !== null;

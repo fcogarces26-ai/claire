@@ -1,9 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handleIncomingMessage } from '@/lib/whatsapp-handler';
-import { IncomingWhatsAppMessage } from '@/lib/twilio';
+import { IncomingWhatsAppMessage, isTwilioConfigured } from '@/lib/twilio';
 
 export async function POST(request: NextRequest) {
   try {
+    // Verificar configuración de Twilio
+    if (!isTwilioConfigured()) {
+      console.log('Webhook recibido pero Twilio no está configurado');
+      return new NextResponse(
+        '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/xml',
+          },
+        }
+      );
+    }
+
     // Obtener datos del formulario
     const formData = await request.formData();
     

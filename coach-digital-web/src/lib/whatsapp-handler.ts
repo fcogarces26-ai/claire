@@ -1,10 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
-import { sendWhatsAppMessage, extractPhoneNumber, IncomingWhatsAppMessage } from './twilio';
+import { sendWhatsAppMessage, extractPhoneNumber, IncomingWhatsAppMessage, isTwilioConfigured } from './twilio';
 // Cliente de Supabase
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.warn('Supabase no está configurado completamente');
+}
+
+const supabase = supabaseUrl && supabaseServiceKey 
+  ? createClient(supabaseUrl, supabaseServiceKey)
+  : null;
 
 export interface ConversationMessage {
   id?: string;
@@ -31,6 +37,12 @@ export interface UserProfile {
 // Procesar mensaje entrante de WhatsApp
 export async function handleIncomingMessage(twilioData: IncomingWhatsAppMessage) {
   try {
+    // Verificar configuración de Twilio
+    if (!isTwilioConfigured()) {
+      console.error('Twilio no está configurado');
+      return { success: false, error: 'Twilio no configurado' };
+    }
+
     const phoneNumber = extractPhoneNumber(twilioData.From);
     
     // Buscar o crear usuario
@@ -76,6 +88,10 @@ export async function handleIncomingMessage(twilioData: IncomingWhatsAppMessage)
 
 // Buscar o crear usuario
 async function findOrCreateUser(phoneNumber: string, profileName?: string): Promise<UserProfile> {
+  if (!supabase) {
+    throw new Error('Supabase no está configurado');
+  }
+
   // Buscar usuario existente por teléfono
   const { data: existingProfile } = await supabase
     .from('user_profiles')
@@ -123,6 +139,11 @@ async function findOrCreateUser(phoneNumber: string, profileName?: string): Prom
 
 // Guardar mensaje en la base de datos
 async function saveMessage(message: ConversationMessage): Promise<void> {
+  if (!supabase) {
+    console.warn('Supabase no está configurado, no se puede guardar mensaje');
+    return;
+  }
+
   const { error } = await supabase
     .from('whatsapp_interactions')
     .insert({
@@ -145,6 +166,11 @@ async function saveMessage(message: ConversationMessage): Promise<void> {
 
 // Obtener historial de conversación
 async function getConversationHistory(userId: string, limit: number = 20): Promise<ConversationMessage[]> {
+  if (!supabase) {
+    console.warn('Supabase no está configurado, retornando historial vacío');
+    return [];
+  }
+
   const { data, error } = await supabase
     .from('whatsapp_interactions')
     .select('*')
@@ -232,6 +258,18 @@ async function generateCoachResponse(
 // Enviar mensaje proactivo
 export async function sendProactiveMessage(userId: string, message: string): Promise<boolean> {
   try {
+    // Verificar configuración de Twilio
+    if (!isTwilioConfigured()) {
+      console.error('Twilio no está configurado');
+      return false;
+    }
+
+    // Verificar configuración de Supabase
+    if (!supabase) {
+      console.error('Supabase no está configurado');
+      return false;
+    }
+
     // Obtener datos del usuario
     const { data: userProfile, error } = await supabase
       .from('user_profiles')
