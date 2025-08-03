@@ -92,6 +92,18 @@ export function extractPhoneNumber(whatsappNumber: string): string {
 
 // ========== NUEVAS FUNCIONES DE VERIFICACIÓN ==========
 
+// Tipo para el almacenamiento global de códigos
+interface VerificationData {
+  code: string;
+  expires: number;
+  attempts: number;
+}
+
+// Declaración global para el almacenamiento de códigos
+declare global {
+  var verificationCodes: Map<string, VerificationData> | undefined;
+}
+
 /**
  * Envía un código de verificación via SMS al número de teléfono
  */
@@ -135,15 +147,12 @@ export async function sendVerificationCode(phoneNumber: string): Promise<{
     });
 
     // Guardar el código temporalmente en memoria global
-    if (typeof global === 'undefined') {
-      (global as any) = {};
-    }
-    if (!(global as any).verificationCodes) {
-      (global as any).verificationCodes = new Map();
+    if (!global.verificationCodes) {
+      global.verificationCodes = new Map<string, VerificationData>();
     }
     
     // Guardar código con expiración de 10 minutos
-    (global as any).verificationCodes.set(formattedNumber, {
+    global.verificationCodes.set(formattedNumber, {
       code: verificationCode,
       expires: Date.now() + 10 * 60 * 1000, // 10 minutos
       attempts: 0 // Contador de intentos
@@ -178,17 +187,14 @@ export async function checkVerificationCode(phoneNumber: string, inputCode: stri
     const formattedNumber = cleanNumber.startsWith('+') ? cleanNumber : `+${cleanNumber}`;
 
     // Obtener código guardado
-    if (typeof global === 'undefined') {
-      (global as any) = {};
-    }
-    if (!(global as any).verificationCodes) {
+    if (!global.verificationCodes) {
       return {
         success: false,
         error: 'No se encontró código de verificación para este número'
       };
     }
 
-    const storedData = (global as any).verificationCodes.get(formattedNumber);
+    const storedData = global.verificationCodes.get(formattedNumber);
     
     if (!storedData) {
       return {
@@ -199,7 +205,7 @@ export async function checkVerificationCode(phoneNumber: string, inputCode: stri
 
     // Verificar si el código expiró
     if (Date.now() > storedData.expires) {
-      (global as any).verificationCodes.delete(formattedNumber);
+      global.verificationCodes.delete(formattedNumber);
       return {
         success: false,
         error: 'El código de verificación ha expirado'
@@ -211,7 +217,7 @@ export async function checkVerificationCode(phoneNumber: string, inputCode: stri
 
     // Limitar intentos (máximo 5)
     if (storedData.attempts > 5) {
-      (global as any).verificationCodes.delete(formattedNumber);
+      global.verificationCodes.delete(formattedNumber);
       return {
         success: false,
         error: 'Demasiados intentos fallidos. Solicita un nuevo código'
@@ -221,7 +227,7 @@ export async function checkVerificationCode(phoneNumber: string, inputCode: stri
     // Verificar si el código coincide
     if (storedData.code !== inputCode.trim()) {
       // Actualizar datos con el nuevo número de intentos
-      (global as any).verificationCodes.set(formattedNumber, storedData);
+      global.verificationCodes.set(formattedNumber, storedData);
       
       return {
         success: false,
@@ -230,7 +236,7 @@ export async function checkVerificationCode(phoneNumber: string, inputCode: stri
     }
 
     // Código correcto - limpiar de memoria
-    (global as any).verificationCodes.delete(formattedNumber);
+    global.verificationCodes.delete(formattedNumber);
 
     console.log(`Código verificado exitosamente para ${formattedNumber}`);
 
@@ -251,8 +257,8 @@ export async function checkVerificationCode(phoneNumber: string, inputCode: stri
  * Limpia códigos de verificación expirados (función de limpieza)
  */
 export function cleanExpiredVerificationCodes(): void {
-  if (typeof global !== 'undefined' && (global as any).verificationCodes) {
-    const codes = (global as any).verificationCodes;
+  if (global.verificationCodes) {
+    const codes = global.verificationCodes;
     const now = Date.now();
     
     for (const [phoneNumber, data] of codes.entries()) {
@@ -271,11 +277,11 @@ export function getVerificationStats(): {
   activeCodes: number;
   phoneNumbers: string[];
 } {
-  if (typeof global === 'undefined' || !(global as any).verificationCodes) {
+  if (!global.verificationCodes) {
     return { activeCodes: 0, phoneNumbers: [] };
   }
 
-  const codes = (global as any).verificationCodes;
+  const codes = global.verificationCodes;
   return {
     activeCodes: codes.size,
     phoneNumbers: Array.from(codes.keys())

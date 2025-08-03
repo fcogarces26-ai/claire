@@ -26,19 +26,8 @@ interface WhatsAppStats {
   isActive: boolean
 }
 
-// Países con sus códigos de área
-const countries = [
-  { code: 'CO', name: 'Colombia', dialCode: '+57' },
-  { code: 'MX', name: 'México', dialCode: '+52' },
-  { code: 'AR', name: 'Argentina', dialCode: '+54' },
-  { code: 'ES', name: 'España', dialCode: '+34' },
-  { code: 'US', name: 'Estados Unidos', dialCode: '+1' },
-  { code: 'BR', name: 'Brasil', dialCode: '+55' },
-  { code: 'PE', name: 'Perú', dialCode: '+51' },
-  { code: 'CL', name: 'Chile', dialCode: '+56' },
-  { code: 'EC', name: 'Ecuador', dialCode: '+593' },
-  { code: 'VE', name: 'Venezuela', dialCode: '+58' }
-]
+// Países con sus códigos de área (movido dentro de la función donde se usa)
+// const countries = [...] - removido porque no se usa
 
 export default function NumeroPage() {
   const [user, setUser] = useState<User | null>(null)
@@ -107,14 +96,14 @@ export default function NumeroPage() {
       }
 
       // Cargar estadísticas de WhatsApp
-      await loadWhatsAppStats(user.id)
+      await loadWhatsAppStatsInternal(user.id)
       setLoading(false)
     }
     
     loadUserData()
-  }, [supabase, router])
+  }, [supabase, router]) // Removemos loadWhatsAppStats de las dependencias
 
-  const loadWhatsAppStats = async (userId: string) => {
+  const loadWhatsAppStatsInternal = async (userId: string) => {
     try {
       const { data: interactions } = await supabase
         .from('whatsapp_interactions')
@@ -162,7 +151,7 @@ export default function NumeroPage() {
       }))
 
       setCurrentStep('active')
-      await loadWhatsAppStats(user.id)
+      await loadWhatsAppStatsInternal(user.id)
     } catch (error) {
       console.error('Error updating phone:', error)
     }

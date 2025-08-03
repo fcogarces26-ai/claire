@@ -48,7 +48,7 @@ export default function Dashboard() {
     }
     
     getUser()
-  }, [supabase.auth, router])
+  }, [supabase.auth, router]) // Removemos loadDashboardStats de las dependencias
 
   const loadDashboardStats = async (userId: string) => {
     try {
