@@ -47,6 +47,23 @@ export default function Register() {
     setMessage('')
 
     try {
+      // Validar que el email no esté en uso (opcional, Supabase ya lo maneja)
+      if (email) {
+        const emailCheckResponse = await fetch('/api/auth/check-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        })
+        
+        const emailCheck = await emailCheckResponse.json()
+        
+        if (!emailCheck.available) {
+          setError('Este email ya está registrado. ¿Quieres iniciar sesión?')
+          setLoading(false)
+          return
+        }
+      }
+
       // Registrar usuario
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
@@ -59,7 +76,12 @@ export default function Register() {
       })
 
       if (signUpError) {
-        setError(signUpError.message)
+        // Manejar errores específicos de Supabase
+        if (signUpError.message.includes('already registered')) {
+          setError('Este email ya está registrado. ¿Quieres iniciar sesión?')
+        } else {
+          setError(signUpError.message)
+        }
         setLoading(false)
         return
       }

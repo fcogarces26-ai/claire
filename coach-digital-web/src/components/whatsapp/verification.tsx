@@ -43,6 +43,23 @@ export default function WhatsAppVerification({
     setResult(null);
 
     try {
+      // Primero validar que el número no esté en uso por otro usuario
+      const { data: existingUser, error: checkError } = await fetch('/api/whatsapp/check-availability', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber: phoneNumber.trim() })
+      }).then(res => res.json());
+
+      if (checkError || !existingUser.available) {
+        setResult({
+          valid: false,
+          error: existingUser.message || 'Este número ya está registrado por otro usuario'
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // Si está disponible, proceder con la verificación
       const response = await fetch('/api/whatsapp/verify', {
         method: 'POST',
         headers: {
