@@ -58,6 +58,7 @@ export default function Settings() {
 
   const [selectedDays, setSelectedDays] = useState<string[]>(['monday', 'tuesday', 'wednesday', 'thursday', 'friday'])
   const [timeRange, setTimeRange] = useState({ start: '09:00', end: '18:00' })
+  const [customFrequencyDays, setCustomFrequencyDays] = useState<number>(3)
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -109,6 +110,9 @@ export default function Settings() {
           }
           if (settingsData.reminder_schedule.timeRange) {
             setTimeRange(settingsData.reminder_schedule.timeRange)
+          }
+          if (settingsData.reminder_schedule.customFrequencyDays) {
+            setCustomFrequencyDays(settingsData.reminder_schedule.customFrequencyDays)
           }
         }
       }
@@ -171,7 +175,8 @@ export default function Settings() {
         days: selectedDays,
         timeRange: timeRange,
         timezone: profile.timezone,
-        maxMessagesPerDay: 3
+        maxMessagesPerDay: 3,
+        customFrequencyDays: settings.coaching_frequency === 'custom' ? customFrequencyDays : null
       }
 
       const quietHours = {
@@ -180,26 +185,63 @@ export default function Settings() {
         end: settings.quiet_hours_end || '08:00'
       }
 
-      // TODO LO DE CONFIGURACIONES va a user_settings
-      const { error: settingsError } = await supabase
+      // Verificar si ya existe configuración para este usuario
+      const { data: existingSettings } = await supabase
         .from('user_settings')
-        .upsert({
-          user_id: user.id,
-          reminder_frequency: settings.reminder_frequency,
-          reminder_time: settings.reminder_time,
-          proactive_messages: settings.proactive_messages,
-          coaching_style: settings.coaching_style,
-          presence_level: settings.presence_level,
-          directness_level: settings.directness_level,
-          communication_tone: settings.communication_tone,
-          coaching_frequency: settings.coaching_frequency || 'daily',
-          notifications_enabled: settings.notifications_enabled ?? true,
-          auto_responses: settings.auto_responses ?? true,
-          preferred_contact_method: settings.preferred_contact_method || 'whatsapp',
-          quiet_hours: quietHours,
-          reminder_schedule: reminderSchedule,
-          updated_at: new Date().toISOString()
-        })
+        .select('id')
+        .eq('user_id', user.id)
+        .single()
+
+      let settingsResult
+      
+      if (existingSettings) {
+        // Actualizar configuración existente
+        console.log('🔄 Actualizando configuración existente...')
+        settingsResult = await supabase
+          .from('user_settings')
+          .update({
+            reminder_frequency: settings.reminder_frequency,
+            reminder_time: settings.reminder_time,
+            proactive_messages: settings.proactive_messages,
+            coaching_style: settings.coaching_style,
+            presence_level: settings.presence_level,
+            directness_level: settings.directness_level,
+            communication_tone: settings.communication_tone,
+            coaching_frequency: settings.coaching_frequency || 'daily',
+            notifications_enabled: settings.notifications_enabled ?? true,
+            auto_responses: settings.auto_responses ?? true,
+            preferred_contact_method: settings.preferred_contact_method || 'whatsapp',
+            quiet_hours: quietHours,
+            reminder_schedule: reminderSchedule,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', user.id)
+      } else {
+        // Crear nueva configuración
+        console.log('➕ Creando nueva configuración...')
+        settingsResult = await supabase
+          .from('user_settings')
+          .insert({
+            user_id: user.id,
+            reminder_frequency: settings.reminder_frequency,
+            reminder_time: settings.reminder_time,
+            proactive_messages: settings.proactive_messages,
+            coaching_style: settings.coaching_style,
+            presence_level: settings.presence_level,
+            directness_level: settings.directness_level,
+            communication_tone: settings.communication_tone,
+            coaching_frequency: settings.coaching_frequency || 'daily',
+            notifications_enabled: settings.notifications_enabled ?? true,
+            auto_responses: settings.auto_responses ?? true,
+            preferred_contact_method: settings.preferred_contact_method || 'whatsapp',
+            quiet_hours: quietHours,
+            reminder_schedule: reminderSchedule,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+      }
+
+      const { error: settingsError } = settingsResult
 
       if (settingsError) {
         console.error('❌ Error guardando user_settings:', settingsError)
@@ -704,6 +746,22 @@ export default function Settings() {
                   <option value="custom">Personalizado</option>
                   <option value="on_demand">Solo cuando lo solicite</option>
                 </select>
+                
+                {/* Mostrar input para frecuencia personalizada */}
+                {settings.coaching_frequency === 'custom' && (
+                  <div className="mt-3 flex items-center space-x-2">
+                    <span className="text-sm text-gray-600">Cada</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="30"
+                      value={customFrequencyDays}
+                      onChange={(e) => setCustomFrequencyDays(parseInt(e.target.value) || 3)}
+                      className="w-20 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
+                    />
+                    <span className="text-sm text-gray-600">días</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
