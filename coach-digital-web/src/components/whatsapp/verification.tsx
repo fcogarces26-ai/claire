@@ -293,11 +293,24 @@ export default function WhatsAppVerification({
             <p className="text-sm text-green-700 mb-4">
               Tu número <strong>{phoneNumber}</strong> ha sido verificado correctamente
             </p>
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
               <p className="text-xs text-green-600">
-                ✓ WhatsApp conectado y listo para recibir mensajes del coach
+                ✓ WhatsApp conectado y guardado en tu perfil
               </p>
             </div>
+            
+            {/* Botón para continuar */}
+            <button
+              onClick={() => {
+                // Forzar llamada al callback después de mostrar éxito
+                if (onVerificationSuccess && showSuccessCallback) {
+                  onVerificationSuccess(phoneNumber.trim());
+                }
+              }}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              Continuar al Dashboard
+            </button>
           </div>
         )}
 

@@ -132,17 +132,26 @@ export default function NumeroPage() {
       // Detectar código de país del número
       const countryCode = detectCountryFromPhone(phoneNumber)
       
+      console.log('💾 Guardando número verificado en Supabase:', phoneNumber)
+      
       const { error } = await supabase
         .from('user_profiles')
         .upsert({
           id: user.id,
           phone_number: phoneNumber,
           country_code: countryCode,
-          whatsapp_verified: true // El componente WhatsAppVerification ya maneja la verificación
+          whatsapp_verified: true,
+          updated_at: new Date().toISOString()
         })
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ Error guardando en Supabase:', error)
+        throw error
+      }
 
+      console.log('✅ Número guardado exitosamente en Supabase')
+
+      // Actualizar estado local
       setProfile(prev => ({
         ...prev,
         phone_number: phoneNumber,
@@ -150,28 +159,43 @@ export default function NumeroPage() {
         whatsapp_verified: true
       }))
 
+      // Cambiar al paso de éxito
       setCurrentStep('active')
+      
+      // Recargar estadísticas
       await loadWhatsAppStatsInternal(user.id)
+      
     } catch (error) {
       console.error('Error updating phone:', error)
+      // Mostrar error al usuario
+      alert('Error guardando el número verificado. Por favor intenta de nuevo.')
     }
   }
 
   const handleDisconnect = async () => {
-    if (!user || !confirm('¿Estás seguro de que quieres desconectar WhatsApp?')) return
+    if (!user || !confirm('¿Estás seguro de que quieres desconectar WhatsApp? Perderás el acceso a tu coach personal.')) return
 
     try {
+      console.log('🗑️ Desconectando WhatsApp del usuario')
+      
       const { error } = await supabase
         .from('user_profiles')
         .update({
           phone_number: null,
           whatsapp_verified: false,
-          country_code: null
+          country_code: null,
+          updated_at: new Date().toISOString()
         })
         .eq('id', user.id)
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ Error desconectando:', error)
+        throw error
+      }
 
+      console.log('✅ WhatsApp desconectado exitosamente')
+
+      // Actualizar estado local
       setProfile(prev => ({
         ...prev,
         phone_number: null,
@@ -180,8 +204,10 @@ export default function NumeroPage() {
       }))
 
       setCurrentStep('configure')
+      
     } catch (error) {
       console.error('Error disconnecting WhatsApp:', error)
+      alert('Error al desconectar WhatsApp. Por favor intenta de nuevo.')
     }
   }
 
@@ -339,14 +365,20 @@ export default function NumeroPage() {
                   Gestión de WhatsApp
                 </h3>
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg border border-green-200">
                     <div>
-                      <p className="font-medium text-gray-900">Número conectado</p>
-                      <p className="text-sm text-gray-600">{profile.phone_number}</p>
+                      <p className="font-medium text-green-900">✅ Número verificado</p>
+                      <p className="text-sm text-green-700">{profile.phone_number}</p>
+                      <p className="text-xs text-green-600 mt-1">
+                        Guardado el {new Date().toLocaleDateString('es-ES')}
+                      </p>
                     </div>
                     <Button 
                       variant="outline" 
-                      onClick={() => setCurrentStep('configure')}
+                      onClick={() => {
+                        setCurrentStep('configure')
+                        setProfile(prev => ({ ...prev, whatsapp_verified: false }))
+                      }}
                     >
                       Cambiar número
                     </Button>
@@ -362,6 +394,17 @@ export default function NumeroPage() {
                       onClick={handleDisconnect}
                     >
                       Desconectar
+                    </Button>
+                  </div>
+
+                  {/* Botón para ir al dashboard */}
+                  <div className="pt-4 border-t border-gray-200">
+                    <Button 
+                      onClick={() => router.push('/dashboard')}
+                      className="w-full"
+                      size="lg"
+                    >
+                      Ir al Dashboard →
                     </Button>
                   </div>
                 </div>
