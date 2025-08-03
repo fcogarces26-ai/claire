@@ -11,7 +11,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { phoneNumber, action, code } = body;
 
+    console.log('📱 API Debug - Request:', { phoneNumber, action, code });
+
     if (!phoneNumber) {
+      console.log('❌ Error: Número de teléfono faltante');
       return NextResponse.json(
         { error: 'El número de teléfono es requerido' },
         { status: 400 }
@@ -20,11 +23,16 @@ export async function POST(request: NextRequest) {
 
     // Acción: Enviar código de verificación
     if (action === 'send_code') {
+      console.log('📤 Intentando enviar código a:', phoneNumber);
+      
       try {
         // Primero verificar que el número sea válido
+        console.log('🔍 Verificando número...');
         const isValid = await verifyPhoneNumber(phoneNumber);
+        console.log('✅ Número válido:', isValid);
         
         if (!isValid) {
+          console.log('❌ Número inválido:', phoneNumber);
           return NextResponse.json(
             { 
               success: false,
@@ -36,9 +44,12 @@ export async function POST(request: NextRequest) {
         }
 
         // Enviar código de verificación via SMS
+        console.log('📨 Enviando código SMS...');
         const verificationResult = await sendVerificationCode(phoneNumber);
+        console.log('📨 Resultado envío:', verificationResult);
         
         if (verificationResult.success) {
+          console.log('✅ Código enviado exitosamente');
           return NextResponse.json({
             success: true,
             codeSent: true,
@@ -47,6 +58,7 @@ export async function POST(request: NextRequest) {
             sid: verificationResult.sid
           });
         } else {
+          console.log('❌ Error enviando código:', verificationResult.error);
           return NextResponse.json(
             { 
               success: false,
@@ -57,7 +69,7 @@ export async function POST(request: NextRequest) {
         }
         
       } catch (error) {
-        console.error('Error enviando código:', error);
+        console.error('💥 Error en send_code:', error);
         return NextResponse.json(
           { 
             success: false,
