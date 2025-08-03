@@ -14,6 +14,7 @@ interface UserSettings {
   directness_level?: number
   communication_tone?: string
   presence_level?: string
+  coaching_focus?: string
   reminder_schedule?: {
     days: string[]
     timeRange: { start: string; end: string }
@@ -28,8 +29,76 @@ interface User {
 interface UserProfile {
   phone_number: string | null
   whatsapp_verified: boolean
+  country: string
   timezone: string
+  language: string
 }
+
+// Datos para los selects
+const countries = [
+  { code: 'CO', name: 'Colombia', timezone: 'America/Bogota', language: 'es' },
+  { code: 'MX', name: 'México', timezone: 'America/Mexico_City', language: 'es' },
+  { code: 'AR', name: 'Argentina', timezone: 'America/Buenos_Aires', language: 'es' },
+  { code: 'ES', name: 'España', timezone: 'Europe/Madrid', language: 'es' },
+  { code: 'US', name: 'Estados Unidos', timezone: 'America/New_York', language: 'en' },
+  { code: 'BR', name: 'Brasil', timezone: 'America/Sao_Paulo', language: 'pt' },
+  { code: 'PE', name: 'Perú', timezone: 'America/Lima', language: 'es' },
+  { code: 'CL', name: 'Chile', timezone: 'America/Santiago', language: 'es' },
+  { code: 'EC', name: 'Ecuador', timezone: 'America/Guayaquil', language: 'es' },
+  { code: 'VE', name: 'Venezuela', timezone: 'America/Caracas', language: 'es' }
+]
+
+const timezones = [
+  { value: 'America/Bogota', label: 'Bogotá (GMT-5)' },
+  { value: 'America/Mexico_City', label: 'Ciudad de México (GMT-6)' },
+  { value: 'America/Buenos_Aires', label: 'Buenos Aires (GMT-3)' },
+  { value: 'Europe/Madrid', label: 'Madrid (GMT+1)' },
+  { value: 'America/New_York', label: 'Nueva York (GMT-5)' },
+  { value: 'America/Sao_Paulo', label: 'São Paulo (GMT-3)' },
+  { value: 'America/Lima', label: 'Lima (GMT-5)' },
+  { value: 'America/Santiago', label: 'Santiago (GMT-3)' },
+  { value: 'America/Guayaquil', label: 'Guayaquil (GMT-5)' },
+  { value: 'America/Caracas', label: 'Caracas (GMT-4)' }
+]
+
+const languages = [
+  { code: 'es', name: 'Español' },
+  { code: 'en', name: 'English' },
+  { code: 'pt', name: 'Português' }
+]
+
+const coachingFocuses = [
+  { 
+    value: 'deportista', 
+    label: 'Deportista', 
+    description: 'Enfoque en rendimiento físico, disciplina y metas deportivas',
+    icon: '🏃‍♂️'
+  },
+  { 
+    value: 'carrera_profesional', 
+    label: 'Carrera Profesional', 
+    description: 'Desarrollo de habilidades profesionales y crecimiento laboral',
+    icon: '👔'
+  },
+  { 
+    value: 'emprendimiento', 
+    label: 'Emprendimiento', 
+    description: 'Crear y hacer crecer tu propio negocio desde cero',
+    icon: '🚀'
+  },
+  { 
+    value: 'empresario', 
+    label: 'Empresario', 
+    description: 'Liderazgo, gestión de equipos y crecimiento empresarial',
+    icon: '💼'
+  },
+  { 
+    value: 'bienestar_personal', 
+    label: 'Bienestar Personal', 
+    description: 'Equilibrio vida-trabajo, hábitos saludables y crecimiento personal',
+    icon: '🌱'
+  }
+]
 
 export default function Settings() {
   const [user, setUser] = useState<User | null>(null)
@@ -40,12 +109,15 @@ export default function Settings() {
     coaching_style: 'balanced',
     directness_level: 3,
     communication_tone: 'motivational',
-    presence_level: 'daily'
+    presence_level: 'daily',
+    coaching_focus: 'bienestar_personal'
   })
   const [profile, setProfile] = useState<UserProfile>({
     phone_number: null,
     whatsapp_verified: false,
-    timezone: 'UTC'
+    country: 'CO',
+    timezone: 'America/Bogota',
+    language: 'es'
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -67,6 +139,34 @@ export default function Settings() {
   const [selectedDays, setSelectedDays] = useState<string[]>(['monday', 'tuesday', 'wednesday', 'thursday', 'friday'])
   const [timeRange, setTimeRange] = useState({ start: '09:00', end: '18:00' })
 
+  // Tonos de comunicación con imágenes
+  const communicationTones = [
+    { 
+      value: 'motivational', 
+      label: 'Motivacional', 
+      emoji: '🔥',
+      description: 'Energético y inspirador'
+    },
+    { 
+      value: 'empathetic', 
+      label: 'Empático', 
+      emoji: '🤗',
+      description: 'Comprensivo y cálido'
+    },
+    { 
+      value: 'professional', 
+      label: 'Profesional', 
+      emoji: '💼',
+      description: 'Formal y estructurado'
+    },
+    { 
+      value: 'friendly', 
+      label: 'Amigable', 
+      emoji: '😊',
+      description: 'Casual y cercano'
+    }
+  ]
+
   useEffect(() => {
     const loadUserData = async () => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -86,6 +186,12 @@ export default function Settings() {
 
       if (settingsData) {
         setSettings(settingsData)
+        if (settingsData.reminder_schedule?.days) {
+          setSelectedDays(settingsData.reminder_schedule.days)
+        }
+        if (settingsData.reminder_schedule?.timeRange) {
+          setTimeRange(settingsData.reminder_schedule.timeRange)
+        }
       }
 
       // Cargar perfil
@@ -97,6 +203,22 @@ export default function Settings() {
 
       if (profileData) {
         setProfile(profileData)
+        
+        // Auto-detectar país por número de teléfono si existe
+        if (profileData.phone_number && !profileData.country) {
+          const detectedCountry = detectCountryFromPhone(profileData.phone_number)
+          if (detectedCountry) {
+            const countryInfo = countries.find(c => c.code === detectedCountry)
+            if (countryInfo) {
+              setProfile(prev => ({
+                ...prev,
+                country: countryInfo.code,
+                timezone: countryInfo.timezone,
+                language: countryInfo.language
+              }))
+            }
+          }
+        }
       }
 
       setLoading(false)
@@ -104,6 +226,36 @@ export default function Settings() {
     
     loadUserData()
   }, [supabase, router])
+
+  // Función para detectar país por código de área
+  const detectCountryFromPhone = (phoneNumber: string): string | null => {
+    const cleaned = phoneNumber.replace(/\D/g, '')
+    
+    if (cleaned.startsWith('57')) return 'CO' // Colombia
+    if (cleaned.startsWith('52')) return 'MX' // México
+    if (cleaned.startsWith('54')) return 'AR' // Argentina
+    if (cleaned.startsWith('34')) return 'ES' // España
+    if (cleaned.startsWith('1')) return 'US' // Estados Unidos
+    if (cleaned.startsWith('55')) return 'BR' // Brasil
+    if (cleaned.startsWith('51')) return 'PE' // Perú
+    if (cleaned.startsWith('56')) return 'CL' // Chile
+    if (cleaned.startsWith('593')) return 'EC' // Ecuador
+    if (cleaned.startsWith('58')) return 'VE' // Venezuela
+    
+    return null
+  }
+
+  const handleCountryChange = (countryCode: string) => {
+    const country = countries.find(c => c.code === countryCode)
+    if (country) {
+      setProfile(prev => ({
+        ...prev,
+        country: country.code,
+        timezone: country.timezone,
+        language: country.language
+      }))
+    }
+  }
 
   const handleSaveSettings = async () => {
     if (!user) {
@@ -130,6 +282,7 @@ export default function Settings() {
           reminder_time: settings.reminder_time,
           proactive_messages: settings.proactive_messages,
           coaching_style: settings.coaching_style,
+          coaching_focus: settings.coaching_focus,
           reminder_schedule: reminderSchedule
         })
 
@@ -140,8 +293,9 @@ export default function Settings() {
         .from('user_profiles')
         .upsert({
           id: user.id,
-          phone_number: profile.phone_number,
+          country: profile.country,
           timezone: profile.timezone,
+          language: profile.language,
           coaching_preferences: {
             directness_level: settings.directness_level,
             communication_tone: settings.communication_tone,
@@ -214,6 +368,126 @@ export default function Settings() {
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto space-y-8">
           
+          {/* Foco del Coaching */}
+          <div className="bg-white rounded-lg shadow-lg p-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
+              <span className="text-3xl mr-3">🎯</span>
+              Enfoque de tu Coaching
+            </h2>
+            <p className="text-gray-600 mb-6">
+              Selecciona el área principal en la que quieres que se enfoque tu coach personal
+            </p>
+            
+            <div className="grid md:grid-cols-2 gap-4">
+              {coachingFocuses.map((focus) => (
+                <label 
+                  key={focus.value} 
+                  className={`relative flex items-start p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                    settings.coaching_focus === focus.value 
+                      ? 'border-blue-500 bg-blue-50' 
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="coaching_focus"
+                    value={focus.value}
+                    checked={settings.coaching_focus === focus.value}
+                    onChange={(e) => setSettings(prev => ({
+                      ...prev,
+                      coaching_focus: e.target.value
+                    }))}
+                    className="sr-only"
+                  />
+                  <div className="flex items-start">
+                    <div className="text-3xl mr-4">{focus.icon}</div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900">{focus.label}</h3>
+                      <p className="text-sm text-gray-600 mt-1">{focus.description}</p>
+                    </div>
+                  </div>
+                  {settings.coaching_focus === focus.value && (
+                    <div className="absolute top-2 right-2">
+                      <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                        <span className="text-white text-sm">✓</span>
+                      </div>
+                    </div>
+                  )}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Configuración Regional */}
+          <div className="bg-white rounded-lg shadow-lg p-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
+              <span className="text-3xl mr-3">🌍</span>
+              Configuración Regional
+            </h2>
+            
+            <div className="grid md:grid-cols-3 gap-6">
+              {/* País */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  País
+                </label>
+                <select
+                  value={profile.country}
+                  onChange={(e) => handleCountryChange(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {countries.map((country) => (
+                    <option key={country.code} value={country.code}>
+                      {country.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Zona Horaria */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Zona Horaria
+                </label>
+                <select
+                  value={profile.timezone}
+                  onChange={(e) => setProfile(prev => ({
+                    ...prev,
+                    timezone: e.target.value
+                  }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {timezones.map((tz) => (
+                    <option key={tz.value} value={tz.value}>
+                      {tz.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Idioma */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Idioma
+                </label>
+                <select
+                  value={profile.language}
+                  onChange={(e) => setProfile(prev => ({
+                    ...prev,
+                    language: e.target.value
+                  }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {languages.map((lang) => (
+                    <option key={lang.code} value={lang.code}>
+                      {lang.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
           {/* Configuración del Coach */}
           <div className="bg-white rounded-lg shadow-lg p-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
@@ -221,7 +495,7 @@ export default function Settings() {
               Personalidad de tu Coach
             </h2>
             
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="space-y-8">
               {/* Nivel de Directividad */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-3">
@@ -253,24 +527,39 @@ export default function Settings() {
                 </div>
               </div>
 
-              {/* Tono de Comunicación */}
+              {/* Tono de Comunicación - Barra horizontal */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
+                <label className="block text-sm font-medium text-gray-700 mb-4">
                   Tono de comunicación
                 </label>
-                <select
-                  value={settings.communication_tone}
-                  onChange={(e) => setSettings(prev => ({
-                    ...prev,
-                    communication_tone: e.target.value
-                  }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="motivational">Motivacional y energético</option>
-                  <option value="empathetic">Comprensivo y empático</option>
-                  <option value="professional">Profesional y formal</option>
-                  <option value="friendly">Amigable y casual</option>
-                </select>
+                <div className="grid grid-cols-4 gap-4">
+                  {communicationTones.map((tone) => (
+                    <button
+                      key={tone.value}
+                      type="button"
+                      onClick={() => setSettings(prev => ({
+                        ...prev,
+                        communication_tone: tone.value
+                      }))}
+                      className={`relative p-4 border-2 rounded-lg transition-all text-center ${
+                        settings.communication_tone === tone.value
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="text-4xl mb-2">{tone.emoji}</div>
+                      <h3 className="font-semibold text-sm text-gray-900">{tone.label}</h3>
+                      <p className="text-xs text-gray-600 mt-1">{tone.description}</p>
+                      {settings.communication_tone === tone.value && (
+                        <div className="absolute -top-2 -right-2">
+                          <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                            <span className="text-white text-xs">✓</span>
+                          </div>
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -411,39 +700,6 @@ export default function Settings() {
                     Permitir mensajes proactivos (tu coach puede iniciar conversaciones)
                   </span>
                 </label>
-              </div>
-            </div>
-          </div>
-
-          {/* Configuración de WhatsApp */}
-          <div className="bg-white rounded-lg shadow-lg p-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-              <span className="text-3xl mr-3">📱</span>
-              WhatsApp
-            </h2>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Número de WhatsApp
-                </label>
-                <input
-                  type="tel"
-                  value={profile.phone_number || ''}
-                  onChange={(e) => setProfile(prev => ({
-                    ...prev,
-                    phone_number: e.target.value
-                  }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="+57 300 123 4567"
-                />
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <div className={`w-3 h-3 rounded-full ${profile.whatsapp_verified ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                <span className="text-sm text-gray-600">
-                  {profile.whatsapp_verified ? 'WhatsApp verificado' : 'WhatsApp no verificado'}
-                </span>
               </div>
             </div>
           </div>

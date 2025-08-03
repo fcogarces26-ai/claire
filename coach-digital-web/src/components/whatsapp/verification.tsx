@@ -10,8 +10,18 @@ interface VerificationResult {
   error?: string;
 }
 
-export default function WhatsAppVerification() {
-  const [phoneNumber, setPhoneNumber] = useState('');
+interface WhatsAppVerificationProps {
+  onVerificationSuccess?: (phoneNumber: string) => void;
+  initialPhone?: string | null;
+  showSuccessCallback?: boolean;
+}
+
+export default function WhatsAppVerification({ 
+  onVerificationSuccess, 
+  initialPhone = '',
+  showSuccessCallback = true 
+}: WhatsAppVerificationProps) {
+  const [phoneNumber, setPhoneNumber] = useState(initialPhone || '');
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<VerificationResult | null>(null);
 
@@ -38,6 +48,11 @@ export default function WhatsAppVerification() {
 
       const data = await response.json();
       setResult(data);
+
+      // Si la verificación es exitosa y hay callback, llamarlo
+      if (data.valid && onVerificationSuccess && showSuccessCallback) {
+        onVerificationSuccess(data.phoneNumber || phoneNumber.trim());
+      }
     } catch (error) {
       console.error('Error verificando número:', error);
       setResult({
@@ -125,12 +140,17 @@ export default function WhatsAppVerification() {
                 {result.valid ? (
                   <div className="space-y-2">
                     <p className="font-medium text-green-800">
-                      ✅ Número válido
+                      ✅ Número válido y verificado
                     </p>
                     <div className="text-sm text-green-700 space-y-1">
                       <p><strong>Número:</strong> {result.phoneNumber}</p>
                       <p><strong>Formato WhatsApp:</strong> {result.whatsappFormat}</p>
                     </div>
+                    {showSuccessCallback && onVerificationSuccess && (
+                      <p className="text-xs text-green-600 mt-2">
+                        ✓ Número configurado correctamente
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <p className="text-red-800">

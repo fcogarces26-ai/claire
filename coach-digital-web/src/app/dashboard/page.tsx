@@ -14,8 +14,23 @@ interface User {
   }
 }
 
+interface DashboardStats {
+  savedNotes: number
+  activeDays: number
+  completedGoals: number
+  whatsappMessages: number
+  lastMessageDate: string | null
+}
+
 export default function Dashboard() {
   const [user, setUser] = useState<User | null>(null)
+  const [stats, setStats] = useState<DashboardStats>({
+    savedNotes: 0,
+    activeDays: 1,
+    completedGoals: 0,
+    whatsappMessages: 0,
+    lastMessageDate: null
+  })
   const [loading, setLoading] = useState(true)
   const router = useRouter()
   const supabase = createClient()
@@ -23,12 +38,43 @@ export default function Dashboard() {
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push('/login')
+        return
+      }
       setUser(user)
+      await loadDashboardStats(user.id)
       setLoading(false)
     }
     
     getUser()
-  }, [supabase.auth])
+  }, [supabase.auth, router])
+
+  const loadDashboardStats = async (userId: string) => {
+    try {
+      // Cargar estadísticas de WhatsApp
+      const { data: whatsappData } = await supabase
+        .from('whatsapp_interactions')
+        .select('created_at, message_type')
+        .eq('user_id', userId)
+
+      const whatsappMessages = whatsappData?.length || 0
+      const lastMessage = whatsappData?.[0]?.created_at || null
+
+      // Aquí puedes agregar más consultas para otras estadísticas
+      // Por ejemplo: notas guardadas, metas completadas, etc.
+
+      setStats({
+        savedNotes: 0, // Implementar cuando tengas la tabla de notas
+        activeDays: 1,
+        completedGoals: 0, // Implementar cuando tengas la tabla de metas
+        whatsappMessages,
+        lastMessageDate: lastMessage
+      })
+    } catch (error) {
+      console.error('Error loading dashboard stats:', error)
+    }
+  }
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -44,6 +90,17 @@ export default function Dashboard() {
         </div>
       </div>
     )
+  }
+
+  const formatLastMessageDate = (dateString: string | null) => {
+    if (!dateString) return 'Nunca'
+    const date = new Date(dateString)
+    return date.toLocaleDateString('es-ES', { 
+      day: 'numeric', 
+      month: 'short', 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    })
   }
 
   return (
@@ -93,31 +150,64 @@ export default function Dashboard() {
                 </div>
               </Link>
               
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-6 hover:bg-purple-100 transition-colors cursor-pointer">
-                <div className="text-3xl mb-2">💬</div>
-                <h3 className="font-semibold text-purple-900">WhatsApp</h3>
-                <p className="text-sm text-purple-700">Próximamente</p>
-              </div>
+              <Link href="/numero">
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-6 hover:bg-purple-100 transition-colors cursor-pointer">
+                  <div className="text-3xl mb-2">💬</div>
+                  <h3 className="font-semibold text-purple-900">WhatsApp</h3>
+                  <p className="text-sm text-purple-700">
+                    {stats.whatsappMessages > 0 ? 'Ver configuración' : 'Configurar número'}
+                  </p>
+                </div>
+              </Link>
             </div>
           </div>
 
           {/* Stats */}
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-4 gap-6">
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Notas Guardadas</h3>
-              <p className="text-3xl font-bold text-blue-600">0</p>
+              <p className="text-3xl font-bold text-blue-600">{stats.savedNotes}</p>
             </div>
             
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Días Activo</h3>
-              <p className="text-3xl font-bold text-green-600">1</p>
+              <p className="text-3xl font-bold text-green-600">{stats.activeDays}</p>
             </div>
             
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Metas Completadas</h3>
-              <p className="text-3xl font-bold text-purple-600">0</p>
+              <p className="text-3xl font-bold text-purple-600">{stats.completedGoals}</p>
+            </div>
+
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Mensajes WhatsApp</h3>
+              <p className="text-3xl font-bold text-orange-600">{stats.whatsappMessages}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Último: {formatLastMessageDate(stats.lastMessageDate)}
+              </p>
             </div>
           </div>
+
+          {/* WhatsApp Status */}
+          {stats.whatsappMessages > 0 && (
+            <div className="mt-8 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg shadow p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    WhatsApp Conectado ✅
+                  </h3>
+                  <p className="text-gray-600">
+                    Tu coach está activo y listo para ayudarte por WhatsApp
+                  </p>
+                </div>
+                <Link href="/numero">
+                  <Button variant="outline">
+                    Gestionar
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </div>
