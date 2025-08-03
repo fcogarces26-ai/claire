@@ -6,99 +6,23 @@ import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
-interface UserSettings {
-  reminder_frequency: string
-  reminder_time: string
-  proactive_messages: boolean
-  coaching_style: string
-  directness_level?: number
-  communication_tone?: string
-  presence_level?: string
-  coaching_focus?: string
-  reminder_schedule?: {
-    days: string[]
-    timeRange: { start: string; end: string }
-  }
-}
+// Importar constantes y tipos
+import {
+  COUNTRIES,
+  TIMEZONES,
+  LANGUAGES,
+  COACHING_FOCUSES,
+  COMMUNICATION_TONES,
+  WEEK_DAYS,
+  DIRECTNESS_LEVELS,
+  getCountryByCode
+} from '@/lib/constants'
 
-interface User {
-  id: string
-  email?: string
-}
-
-interface UserProfile {
-  phone_number: string | null
-  whatsapp_verified: boolean
-  country: string
-  timezone: string
-  language: string
-}
-
-// Datos para los selects
-const countries = [
-  { code: 'CO', name: 'Colombia', timezone: 'America/Bogota', language: 'es' },
-  { code: 'MX', name: 'México', timezone: 'America/Mexico_City', language: 'es' },
-  { code: 'AR', name: 'Argentina', timezone: 'America/Buenos_Aires', language: 'es' },
-  { code: 'ES', name: 'España', timezone: 'Europe/Madrid', language: 'es' },
-  { code: 'US', name: 'Estados Unidos', timezone: 'America/New_York', language: 'en' },
-  { code: 'BR', name: 'Brasil', timezone: 'America/Sao_Paulo', language: 'pt' },
-  { code: 'PE', name: 'Perú', timezone: 'America/Lima', language: 'es' },
-  { code: 'CL', name: 'Chile', timezone: 'America/Santiago', language: 'es' },
-  { code: 'EC', name: 'Ecuador', timezone: 'America/Guayaquil', language: 'es' },
-  { code: 'VE', name: 'Venezuela', timezone: 'America/Caracas', language: 'es' }
-]
-
-const timezones = [
-  { value: 'America/Bogota', label: 'Bogotá (GMT-5)' },
-  { value: 'America/Mexico_City', label: 'Ciudad de México (GMT-6)' },
-  { value: 'America/Buenos_Aires', label: 'Buenos Aires (GMT-3)' },
-  { value: 'Europe/Madrid', label: 'Madrid (GMT+1)' },
-  { value: 'America/New_York', label: 'Nueva York (GMT-5)' },
-  { value: 'America/Sao_Paulo', label: 'São Paulo (GMT-3)' },
-  { value: 'America/Lima', label: 'Lima (GMT-5)' },
-  { value: 'America/Santiago', label: 'Santiago (GMT-3)' },
-  { value: 'America/Guayaquil', label: 'Guayaquil (GMT-5)' },
-  { value: 'America/Caracas', label: 'Caracas (GMT-4)' }
-]
-
-const languages = [
-  { code: 'es', name: 'Español' },
-  { code: 'en', name: 'English' },
-  { code: 'pt', name: 'Português' }
-]
-
-const coachingFocuses = [
-  { 
-    value: 'deportista', 
-    label: 'Deportista', 
-    description: 'Enfoque en rendimiento físico, disciplina y metas deportivas',
-    icon: '🏃‍♂️'
-  },
-  { 
-    value: 'carrera_profesional', 
-    label: 'Carrera Profesional', 
-    description: 'Desarrollo de habilidades profesionales y crecimiento laboral',
-    icon: '👔'
-  },
-  { 
-    value: 'emprendimiento', 
-    label: 'Emprendimiento', 
-    description: 'Crear y hacer crecer tu propio negocio desde cero',
-    icon: '🚀'
-  },
-  { 
-    value: 'empresario', 
-    label: 'Empresario', 
-    description: 'Liderazgo, gestión de equipos y crecimiento empresarial',
-    icon: '💼'
-  },
-  { 
-    value: 'bienestar_personal', 
-    label: 'Bienestar Personal', 
-    description: 'Equilibrio vida-trabajo, hábitos saludables y crecimiento personal',
-    icon: '🌱'
-  }
-]
+import {
+  UserSettings,
+  User,
+  UserProfile
+} from '@/lib/types'
 
 export default function Settings() {
   const [user, setUser] = useState<User | null>(null)
@@ -110,7 +34,14 @@ export default function Settings() {
     directness_level: 3,
     communication_tone: 'motivational',
     presence_level: 'daily',
-    coaching_focus: 'bienestar_personal'
+    coaching_focus: 'bienestar_personal',
+    coaching_frequency: 'daily',
+    notifications_enabled: true,
+    auto_responses: true,
+    preferred_contact_method: 'whatsapp',
+    quiet_hours_enabled: false,
+    quiet_hours_start: '22:00',
+    quiet_hours_end: '08:00'
   })
   const [profile, setProfile] = useState<UserProfile>({
     phone_number: null,
@@ -125,47 +56,8 @@ export default function Settings() {
   const router = useRouter()
   const supabase = createClient()
 
-  // Días de la semana
-  const weekDays = [
-    { id: 'monday', label: 'Lunes' },
-    { id: 'tuesday', label: 'Martes' },
-    { id: 'wednesday', label: 'Miércoles' },
-    { id: 'thursday', label: 'Jueves' },
-    { id: 'friday', label: 'Viernes' },
-    { id: 'saturday', label: 'Sábado' },
-    { id: 'sunday', label: 'Domingo' }
-  ]
-
   const [selectedDays, setSelectedDays] = useState<string[]>(['monday', 'tuesday', 'wednesday', 'thursday', 'friday'])
   const [timeRange, setTimeRange] = useState({ start: '09:00', end: '18:00' })
-
-  // Tonos de comunicación con imágenes
-  const communicationTones = [
-    { 
-      value: 'motivational', 
-      label: 'Motivacional', 
-      emoji: '🔥',
-      description: 'Energético y inspirador'
-    },
-    { 
-      value: 'empathetic', 
-      label: 'Empático', 
-      emoji: '🤗',
-      description: 'Comprensivo y cálido'
-    },
-    { 
-      value: 'professional', 
-      label: 'Profesional', 
-      emoji: '💼',
-      description: 'Formal y estructurado'
-    },
-    { 
-      value: 'friendly', 
-      label: 'Amigable', 
-      emoji: '😊',
-      description: 'Casual y cercano'
-    }
-  ]
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -177,7 +69,7 @@ export default function Settings() {
       
       setUser(user as User)
 
-      // Cargar configuraciones
+      // Cargar TODAS las configuraciones desde user_settings
       const { data: settingsData } = await supabase
         .from('user_settings')
         .select('*')
@@ -185,19 +77,46 @@ export default function Settings() {
         .single()
 
       if (settingsData) {
-        setSettings(settingsData)
-        if (settingsData.reminder_schedule?.days) {
-          setSelectedDays(settingsData.reminder_schedule.days)
+        setSettings({
+          reminder_frequency: settingsData.reminder_frequency || 'daily',
+          reminder_time: settingsData.reminder_time || '09:00:00',
+          proactive_messages: settingsData.proactive_messages ?? true,
+          coaching_style: settingsData.coaching_style || 'balanced',
+          directness_level: settingsData.directness_level || 3,
+          communication_tone: settingsData.communication_tone || 'motivational',
+          presence_level: settingsData.presence_level || 'daily',
+          coaching_frequency: settingsData.coaching_frequency || 'daily',
+          notifications_enabled: settingsData.notifications_enabled ?? true,
+          auto_responses: settingsData.auto_responses ?? true,
+          preferred_contact_method: settingsData.preferred_contact_method || 'whatsapp',
+          coaching_focus: 'bienestar_personal' // Mantenemos en user_profiles por ahora
+        })
+        
+        // Cargar horarios silenciosos
+        if (settingsData.quiet_hours) {
+          setSettings(prev => ({
+            ...prev,
+            quiet_hours_enabled: settingsData.quiet_hours.enabled || false,
+            quiet_hours_start: settingsData.quiet_hours.start || '22:00',
+            quiet_hours_end: settingsData.quiet_hours.end || '08:00'
+          }))
         }
-        if (settingsData.reminder_schedule?.timeRange) {
-          setTimeRange(settingsData.reminder_schedule.timeRange)
+        
+        // Cargar horarios de recordatorios
+        if (settingsData.reminder_schedule) {
+          if (settingsData.reminder_schedule.days) {
+            setSelectedDays(settingsData.reminder_schedule.days)
+          }
+          if (settingsData.reminder_schedule.timeRange) {
+            setTimeRange(settingsData.reminder_schedule.timeRange)
+          }
         }
       }
 
-      // Cargar perfil
+      // Solo cargar información personal básica desde user_profiles
       const { data: profileData } = await supabase
         .from('user_profiles')
-        .select('*')
+        .select('phone_number, whatsapp_verified, country, timezone, language, coaching_focus')
         .eq('id', user.id)
         .single()
 
@@ -210,16 +129,11 @@ export default function Settings() {
           language: profileData.language || 'es'
         })
         
-        // Cargar configuraciones desde el perfil
-        if (profileData.coaching_preferences) {
-          setSettings(prev => ({
-            ...prev,
-            directness_level: profileData.coaching_preferences.directness_level || 3,
-            communication_tone: profileData.coaching_preferences.communication_tone || 'motivational',
-            presence_level: profileData.coaching_preferences.presence_level || 'daily',
-            coaching_focus: profileData.coaching_focus || 'bienestar_personal'
-          }))
-        }
+        // coaching_focus sigue en user_profiles
+        setSettings(prev => ({
+          ...prev,
+          coaching_focus: profileData.coaching_focus || 'bienestar_personal'
+        }))
       }
 
       setLoading(false)
@@ -228,26 +142,8 @@ export default function Settings() {
     loadUserData()
   }, [supabase, router])
 
-  // Función para detectar país por código de área
-  const detectCountryFromPhone = (phoneNumber: string): string | null => {
-    const cleaned = phoneNumber.replace(/\D/g, '')
-    
-    if (cleaned.startsWith('57')) return 'CO' // Colombia
-    if (cleaned.startsWith('52')) return 'MX' // México
-    if (cleaned.startsWith('54')) return 'AR' // Argentina
-    if (cleaned.startsWith('34')) return 'ES' // España
-    if (cleaned.startsWith('1')) return 'US' // Estados Unidos
-    if (cleaned.startsWith('55')) return 'BR' // Brasil
-    if (cleaned.startsWith('51')) return 'PE' // Perú
-    if (cleaned.startsWith('56')) return 'CL' // Chile
-    if (cleaned.startsWith('593')) return 'EC' // Ecuador
-    if (cleaned.startsWith('58')) return 'VE' // Venezuela
-    
-    return null
-  }
-
   const handleCountryChange = (countryCode: string) => {
-    const country = countries.find(c => c.code === countryCode)
+    const country = getCountryByCode(countryCode)
     if (country) {
       setProfile(prev => ({
         ...prev,
@@ -268,13 +164,23 @@ export default function Settings() {
     setMessage('')
 
     try {
-      // Preparar el horario como JSON
+      console.log('💾 Guardando configuraciones centralizadas...')
+      
+      // Preparar datos completos para user_settings
       const reminderSchedule = {
         days: selectedDays,
-        timeRange: timeRange
+        timeRange: timeRange,
+        timezone: profile.timezone,
+        maxMessagesPerDay: 3
       }
 
-      // Actualizar user_settings
+      const quietHours = {
+        enabled: settings.quiet_hours_enabled || false,
+        start: settings.quiet_hours_start || '22:00',
+        end: settings.quiet_hours_end || '08:00'
+      }
+
+      // TODO LO DE CONFIGURACIONES va a user_settings
       const { error: settingsError } = await supabase
         .from('user_settings')
         .upsert({
@@ -283,13 +189,26 @@ export default function Settings() {
           reminder_time: settings.reminder_time,
           proactive_messages: settings.proactive_messages,
           coaching_style: settings.coaching_style,
-          coaching_focus: settings.coaching_focus,
-          reminder_schedule: reminderSchedule
+          presence_level: settings.presence_level,
+          directness_level: settings.directness_level,
+          communication_tone: settings.communication_tone,
+          coaching_frequency: settings.coaching_frequency || 'daily',
+          notifications_enabled: settings.notifications_enabled ?? true,
+          auto_responses: settings.auto_responses ?? true,
+          preferred_contact_method: settings.preferred_contact_method || 'whatsapp',
+          quiet_hours: quietHours,
+          reminder_schedule: reminderSchedule,
+          updated_at: new Date().toISOString()
         })
 
-      if (settingsError) throw settingsError
+      if (settingsError) {
+        console.error('❌ Error guardando user_settings:', settingsError)
+        throw settingsError
+      }
 
-      // Actualizar user_profiles con toda la información
+      console.log('✅ user_settings guardado exitosamente')
+
+      // Solo información personal básica en user_profiles
       const { error: profileError } = await supabase
         .from('user_profiles')
         .update({
@@ -297,22 +216,30 @@ export default function Settings() {
           timezone: profile.timezone,
           language: profile.language,
           coaching_focus: settings.coaching_focus,
-          coaching_preferences: {
-            directness_level: settings.directness_level,
-            communication_tone: settings.communication_tone,
-            presence_level: settings.presence_level
-          },
           updated_at: new Date().toISOString()
         })
         .eq('id', user.id)
 
-      if (profileError) throw profileError
+      if (profileError) {
+        console.error('❌ Error guardando user_profiles:', profileError)
+        throw profileError
+      }
+
+      console.log('✅ user_profiles guardado exitosamente')
 
       setMessage('Configuración guardada exitosamente')
       setTimeout(() => setMessage(''), 3000)
+      
     } catch (error) {
-      console.error('Error:', error)
-      setMessage('Error al guardar la configuración')
+      console.error('💥 Error completo:', error)
+      
+      let errorMessage = 'Error al guardar la configuración'
+      if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage += `: ${error.message}`
+      }
+      
+      setMessage(errorMessage)
+      setTimeout(() => setMessage(''), 5000)
     }
 
     setSaving(false)
@@ -382,7 +309,7 @@ export default function Settings() {
             </p>
             
             <div className="grid md:grid-cols-2 gap-4">
-              {coachingFocuses.map((focus) => (
+              {COACHING_FOCUSES.map((focus) => (
                 <label 
                   key={focus.value} 
                   className={`relative flex items-start p-4 border-2 rounded-lg cursor-pointer transition-all ${
@@ -439,7 +366,7 @@ export default function Settings() {
                   onChange={(e) => handleCountryChange(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {countries.map((country) => (
+                  {COUNTRIES.map((country) => (
                     <option key={country.code} value={country.code}>
                       {country.name}
                     </option>
@@ -460,9 +387,9 @@ export default function Settings() {
                   }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {timezones.map((tz) => (
+                  {TIMEZONES.map((tz) => (
                     <option key={tz.value} value={tz.value}>
-                      {tz.label}
+                      {tz.label} ({tz.offset})
                     </option>
                   ))}
                 </select>
@@ -481,9 +408,9 @@ export default function Settings() {
                   }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {languages.map((lang) => (
+                  {LANGUAGES.map((lang) => (
                     <option key={lang.code} value={lang.code}>
-                      {lang.name}
+                      {lang.flag} {lang.name}
                     </option>
                   ))}
                 </select>
@@ -505,13 +432,7 @@ export default function Settings() {
                   ¿Qué tan directo quieres que sea contigo?
                 </label>
                 <div className="space-y-2">
-                  {[
-                    { value: 1, label: 'Muy suave y comprensivo' },
-                    { value: 2, label: 'Suave pero claro' },
-                    { value: 3, label: 'Equilibrado' },
-                    { value: 4, label: 'Directo y firme' },
-                    { value: 5, label: 'Muy directo y retador' }
-                  ].map((option) => (
+                  {DIRECTNESS_LEVELS.map((option) => (
                     <label key={option.value} className="flex items-center">
                       <input
                         type="radio"
@@ -524,7 +445,10 @@ export default function Settings() {
                         }))}
                         className="mr-2"
                       />
-                      <span className="text-sm">{option.label}</span>
+                      <div>
+                        <span className="text-sm font-medium">{option.label}</span>
+                        <p className="text-xs text-gray-500">{option.description}</p>
+                      </div>
                     </label>
                   ))}
                 </div>
@@ -535,8 +459,8 @@ export default function Settings() {
                 <label className="block text-sm font-medium text-gray-700 mb-4">
                   Tono de comunicación
                 </label>
-                <div className="grid grid-cols-4 gap-4">
-                  {communicationTones.map((tone) => (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {COMMUNICATION_TONES.map((tone) => (
                     <button
                       key={tone.value}
                       type="button"
@@ -645,7 +569,7 @@ export default function Settings() {
                   Días en que puede enviarte recordatorios
                 </label>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {weekDays.map((day) => (
+                  {WEEK_DAYS.map((day) => (
                     <label key={day.id} className="flex items-center">
                       <input
                         type="checkbox"
@@ -704,6 +628,142 @@ export default function Settings() {
                   </span>
                 </label>
               </div>
+            </div>
+          </div>
+
+          {/* Notificaciones */}
+          <div className="bg-white rounded-lg shadow-lg p-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
+              <span className="text-3xl mr-3">🔔</span>
+              Notificaciones
+            </h2>
+            
+            <div className="space-y-4">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={settings.notifications_enabled}
+                  onChange={(e) => setSettings(prev => ({
+                    ...prev,
+                    notifications_enabled: e.target.checked
+                  }))}
+                  className="mr-2"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  Habilitar notificaciones
+                </span>
+              </label>
+
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={settings.auto_responses}
+                  onChange={(e) => setSettings(prev => ({
+                    ...prev,
+                    auto_responses: e.target.checked
+                  }))}
+                  className="mr-2"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  Permitir respuestas automáticas del coach
+                </span>
+              </label>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Método de contacto preferido
+                </label>
+                <select
+                  value={settings.preferred_contact_method}
+                  onChange={(e) => setSettings(prev => ({
+                    ...prev,
+                    preferred_contact_method: e.target.value
+                  }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="whatsapp">Solo WhatsApp</option>
+                  <option value="email">Solo Email</option>
+                  <option value="both">WhatsApp y Email</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Frecuencia general del coaching
+                </label>
+                <select
+                  value={settings.coaching_frequency}
+                  onChange={(e) => setSettings(prev => ({
+                    ...prev,
+                    coaching_frequency: e.target.value
+                  }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="daily">Diario</option>
+                  <option value="weekly">Semanal</option>
+                  <option value="custom">Personalizado</option>
+                  <option value="on_demand">Solo cuando lo solicite</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Horarios Silenciosos */}
+          <div className="bg-white rounded-lg shadow-lg p-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
+              <span className="text-3xl mr-3">🌙</span>
+              Horarios Silenciosos
+            </h2>
+            
+            <div className="space-y-4">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={settings.quiet_hours_enabled}
+                  onChange={(e) => setSettings(prev => ({
+                    ...prev,
+                    quiet_hours_enabled: e.target.checked
+                  }))}
+                  className="mr-2"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  Habilitar horarios silenciosos
+                </span>
+              </label>
+
+              {settings.quiet_hours_enabled && (
+                <div className="flex items-center space-x-4 ml-6">
+                  <div>
+                    <label className="block text-xs text-gray-500">Desde</label>
+                    <input
+                      type="time"
+                      value={settings.quiet_hours_start || "22:00"}
+                      onChange={(e) => setSettings(prev => ({ 
+                        ...prev, 
+                        quiet_hours_start: e.target.value 
+                      }))}
+                      className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <span className="text-gray-500">hasta</span>
+                  <div>
+                    <label className="block text-xs text-gray-500">Hasta</label>
+                    <input
+                      type="time"
+                      value={settings.quiet_hours_end || "08:00"}
+                      onChange={(e) => setSettings(prev => ({ 
+                        ...prev, 
+                        quiet_hours_end: e.target.value 
+                      }))}
+                      className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <p className="text-xs text-gray-500 ml-6">
+                Durante estos horarios, tu coach no enviará mensajes automáticos
+              </p>
             </div>
           </div>
 
