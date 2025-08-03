@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
@@ -17,29 +17,86 @@ export default function Register() {
   const router = useRouter()
   const supabase = createClient()
 
+  // Verificar si el usuario ya está autenticado y redirigir
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        // Si el usuario ya está autenticado, verificar si tiene número configurado
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('whatsapp_verified')
+          .eq('id', user.id)
+          .single()
+
+        if (profile?.whatsapp_verified) {
+          router.push('/dashboard')
+        } else {
+          router.push('/numero')
+        }
+      }
+    }
+    
+    checkUser()
+  }, [supabase, router])
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
     setMessage('')
 
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          phone_number: phone,
+    try {
+      // Registrar usuario
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            phone_number: phone,
+          }
         }
-      }
-    })
+      })
 
-    if (error) {
-      setError(error.message)
-    } else {
-      setMessage('¡Registro exitoso! Revisa tu email para confirmar tu cuenta.')
-      setTimeout(() => {
-        router.push('/login')
-      }, 3000)
+      if (signUpError) {
+        setError(signUpError.message)
+        setLoading(false)
+        return
+      }
+
+      if (data.user) {
+        // Crear perfil de usuario en la base de datos
+        const { error: profileError } = await supabase
+          .from('user_profiles')
+          .upsert({
+            id: data.user.id,
+            phone_number: phone || null,
+            whatsapp_verified: false,
+            timezone: 'America/Bogota', // Default timezone
+            language: 'es', // Default language
+            country: 'CO' // Default country
+          })
+
+        if (profileError) {
+          console.error('Error creando perfil:', profileError)
+        }
+
+        // Si el usuario necesita confirmar email
+        if (!data.session) {
+          setMessage('¡Registro exitoso! Revisa tu email para confirmar tu cuenta antes de continuar.')
+          // No redirigir inmediatamente, esperar confirmación
+          return
+        }
+
+        // Si el registro fue exitoso y ya está autenticado
+        setMessage('¡Cuenta creada exitosamente! Configuremos tu WhatsApp...')
+        setTimeout(() => {
+          router.push('/numero')
+        }, 2000)
+      }
+    } catch (error) {
+      console.error('Error en registro:', error)
+      setError('Error inesperado durante el registro')
     }
     
     setLoading(false)
@@ -49,18 +106,24 @@ export default function Register() {
     setGoogleLoading(true)
     setError('')
 
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/api/auth/callback`
-      }
-    })
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/api/auth/callback?next=numero`
+        }
+      })
 
-    if (error) {
-      setError(error.message)
+      if (error) {
+        setError(error.message)
+        setGoogleLoading(false)
+      }
+      // No need to set loading to false here as the user will be redirected
+    } catch (error) {
+      console.error('Error en Google OAuth:', error)
+      setError('Error conectando con Google')
       setGoogleLoading(false)
     }
-    // No need to set loading to false here as the user will be redirected
   }
 
   return (
@@ -153,7 +216,7 @@ export default function Register() {
                 placeholder="+57 300 123 4567"
                 disabled={loading || googleLoading}
               />
-              <p className="text-xs text-gray-500 mt-1">Podrás configurarlo después en tu dashboard</p>
+              <p className="text-xs text-gray-500 mt-1">Lo configuraremos después del registro</p>
             </div>
 
             <div>
@@ -194,6 +257,16 @@ export default function Register() {
               {loading ? 'Creando cuenta...' : 'Crear Cuenta'}
             </Button>
           </form>
+
+          {/* Next Steps Info */}
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+            <h3 className="text-sm font-semibold text-blue-900 mb-2">📱 Después del registro:</h3>
+            <ul className="text-xs text-blue-700 space-y-1">
+              <li>• Configurarás tu número de WhatsApp</li>
+              <li>• Personalizarás tu experiencia de coaching</li>
+              <li>• ¡Comenzarás a recibir apoyo de tu coach personal!</li>
+            </ul>
+          </div>
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">

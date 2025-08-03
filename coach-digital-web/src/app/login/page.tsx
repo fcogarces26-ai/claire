@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
@@ -15,41 +15,69 @@ export default function Login() {
   const router = useRouter()
   const supabase = createClient()
 
+  // Verificar si el usuario ya está autenticado
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        router.push('/dashboard')
+      }
+    }
+    
+    checkUser()
+  }, [supabase, router])
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    try {
+      const { data, error: loginError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
 
-    if (error) {
-      setError(error.message)
-    } else {
-      router.push('/dashboard')
+      if (loginError) {
+        setError(loginError.message)
+        setLoading(false)
+        return
+      }
+
+      if (data.user) {
+        // Para usuarios existentes que hacen login, siempre ir al dashboard
+        // La configuración de WhatsApp es opcional y pueden hacerla desde dashboard
+        router.push('/dashboard')
+      }
+    } catch (error) {
+      console.error('Error en login:', error)
+      setError('Error inesperado al iniciar sesión')
+      setLoading(false)
     }
-    
-    setLoading(false)
   }
 
   const handleGoogleLogin = async () => {
     setGoogleLoading(true)
     setError('')
 
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/api/auth/callback`
-      }
-    })
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/api/auth/callback?next=dashboard`
+        }
+      })
 
-    if (error) {
-      setError(error.message)
+      if (error) {
+        setError(error.message)
+        setGoogleLoading(false)
+      }
+      // No need to set loading to false here as the user will be redirected
+    } catch (error) {
+      console.error('Error en Google OAuth:', error)
+      setError('Error conectando con Google')
       setGoogleLoading(false)
     }
-    // No need to set loading to false here as the user will be redirected
   }
 
   return (
