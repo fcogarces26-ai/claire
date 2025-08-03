@@ -22,27 +22,26 @@ export async function GET(request: NextRequest) {
         // Verificar si el usuario ya tiene un perfil
         const { data: existingProfile } = await supabase
           .from('user_profiles')
-          .select('*')
+          .select('onboarding_completed, whatsapp_verified')
           .eq('id', data.user.id)
           .single()
 
         const isNewUser = !existingProfile
 
-        // Si no existe perfil, crearlo (usuario nuevo)
-        if (isNewUser) {
+        // Si no existe perfil, el trigger lo creará automáticamente
+        // Pero podemos agregar información adicional del OAuth
+        if (isNewUser && data.user.user_metadata) {
           const { error: profileError } = await supabase
             .from('user_profiles')
-            .upsert({
-              id: data.user.id,
-              phone_number: data.user.user_metadata?.phone_number || null,
-              whatsapp_verified: false,
-              timezone: 'America/Bogota', // Default timezone
-              language: 'es', // Default language
-              country: 'CO' // Default country
+            .update({
+              name: data.user.user_metadata.full_name || data.user.user_metadata.name,
+              avatar_url: data.user.user_metadata.avatar_url,
+              updated_at: new Date().toISOString()
             })
+            .eq('id', data.user.id)
 
           if (profileError) {
-            console.error('Error creando perfil en callback:', profileError)
+            console.error('Error actualizando perfil OAuth:', profileError)
           }
         }
 

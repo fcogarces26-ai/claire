@@ -202,22 +202,23 @@ export default function Settings() {
         .single()
 
       if (profileData) {
-        setProfile(profileData)
+        setProfile({
+          phone_number: profileData.phone_number,
+          whatsapp_verified: profileData.whatsapp_verified,
+          country: profileData.country || 'CO',
+          timezone: profileData.timezone || 'America/Bogota',
+          language: profileData.language || 'es'
+        })
         
-        // Auto-detectar país por número de teléfono si existe
-        if (profileData.phone_number && !profileData.country) {
-          const detectedCountry = detectCountryFromPhone(profileData.phone_number)
-          if (detectedCountry) {
-            const countryInfo = countries.find(c => c.code === detectedCountry)
-            if (countryInfo) {
-              setProfile(prev => ({
-                ...prev,
-                country: countryInfo.code,
-                timezone: countryInfo.timezone,
-                language: countryInfo.language
-              }))
-            }
-          }
+        // Cargar configuraciones desde el perfil
+        if (profileData.coaching_preferences) {
+          setSettings(prev => ({
+            ...prev,
+            directness_level: profileData.coaching_preferences.directness_level || 3,
+            communication_tone: profileData.coaching_preferences.communication_tone || 'motivational',
+            presence_level: profileData.coaching_preferences.presence_level || 'daily',
+            coaching_focus: profileData.coaching_focus || 'bienestar_personal'
+          }))
         }
       }
 
@@ -288,20 +289,22 @@ export default function Settings() {
 
       if (settingsError) throw settingsError
 
-      // Actualizar user_profiles
+      // Actualizar user_profiles con toda la información
       const { error: profileError } = await supabase
         .from('user_profiles')
-        .upsert({
-          id: user.id,
+        .update({
           country: profile.country,
           timezone: profile.timezone,
           language: profile.language,
+          coaching_focus: settings.coaching_focus,
           coaching_preferences: {
             directness_level: settings.directness_level,
             communication_tone: settings.communication_tone,
             presence_level: settings.presence_level
-          }
+          },
+          updated_at: new Date().toISOString()
         })
+        .eq('id', user.id)
 
       if (profileError) throw profileError
 

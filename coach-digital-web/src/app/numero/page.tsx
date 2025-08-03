@@ -136,13 +136,15 @@ export default function NumeroPage() {
       
       const { error } = await supabase
         .from('user_profiles')
-        .upsert({
-          id: user.id,
+        .update({
           phone_number: phoneNumber,
           country_code: countryCode,
           whatsapp_verified: true,
+          onboarding_completed: true, // Marcar onboarding como completado
+          last_active_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
+        .eq('id', user.id)
 
       if (error) {
         console.error('❌ Error guardando en Supabase:', error)

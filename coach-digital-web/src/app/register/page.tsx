@@ -65,20 +65,20 @@ export default function Register() {
       }
 
       if (data.user) {
-        // Crear perfil de usuario en la base de datos
-        const { error: profileError } = await supabase
-          .from('user_profiles')
-          .upsert({
-            id: data.user.id,
-            phone_number: phone || null,
-            whatsapp_verified: false,
-            timezone: 'America/Bogota', // Default timezone
-            language: 'es', // Default language
-            country: 'CO' // Default country
-          })
+        // El trigger create_user_profile_trigger ya crea el perfil automáticamente
+        // Solo necesitamos actualizar campos específicos si es necesario
+        if (phone) {
+          const { error: profileError } = await supabase
+            .from('user_profiles')
+            .update({
+              phone_number: phone,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', data.user.id)
 
-        if (profileError) {
-          console.error('Error creando perfil:', profileError)
+          if (profileError) {
+            console.error('Error actualizando teléfono en perfil:', profileError)
+          }
         }
 
         // Si el usuario necesita confirmar email
