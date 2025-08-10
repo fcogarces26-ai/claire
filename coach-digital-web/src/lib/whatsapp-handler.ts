@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { sendWhatsAppMessage, extractPhoneNumber, IncomingWhatsAppMessage, isTwilioConfigured } from './twilio';
+import { AIMemoryProcessor } from './ai-memory-processor';
+
 // Cliente de Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -11,6 +13,9 @@ if (!supabaseUrl || !supabaseServiceKey) {
 const supabase = supabaseUrl && supabaseServiceKey 
   ? createClient(supabaseUrl, supabaseServiceKey)
   : null;
+
+// 🧠 Instancia del procesador de memoria
+const memoryProcessor = new AIMemoryProcessor();
 
 export interface ConversationMessage {
   id?: string;
@@ -32,6 +37,7 @@ export interface UserProfile {
   coaching_preferences?: Record<string, unknown>;
   timezone?: string;
   created_at: string;
+  coaching_focus?: string;
 }
 
 // Procesar mensaje entrante de WhatsApp
@@ -49,7 +55,7 @@ export async function handleIncomingMessage(twilioData: IncomingWhatsAppMessage)
     const user = await findOrCreateUser(phoneNumber, twilioData.ProfileName);
     
     // Guardar mensaje del usuario en la BD
-    await saveMessage({
+    const userInteraction = await saveMessage({
       user_id: user.id,
       phone_number: phoneNumber,
       content: twilioData.Body,
@@ -71,7 +77,7 @@ export async function handleIncomingMessage(twilioData: IncomingWhatsAppMessage)
     });
 
     // Guardar respuesta del coach en la BD
-    await saveMessage({
+    const coachInteraction = await saveMessage({
       user_id: user.id,
       phone_number: phoneNumber,
       content: coachResponse,
@@ -79,10 +85,181 @@ export async function handleIncomingMessage(twilioData: IncomingWhatsAppMessage)
       message_type: 'outgoing',
     });
 
+    // 🧠 NUEVO: Procesar memoria automáticamente
+    await processMemoryExtraction({
+      userMessage: twilioData.Body,
+      coachResponse,
+      userId: user.id,
+      userInteractionId: userInteraction?.id,
+      coachInteractionId: coachInteraction?.id,
+      userProfile: user
+    });
+
     return { success: true, response: coachResponse };
   } catch (error) {
     console.error('Error procesando mensaje:', error);
     throw error;
+  }
+}
+
+// 🧠 NUEVA FUNCIÓN: Procesar y extraer información para memory_notes
+async function processMemoryExtraction({
+  userMessage,
+  coachResponse,
+  userId,
+  userInteractionId,
+  coachInteractionId,
+  userProfile
+}: {
+  userMessage: string
+  coachResponse: string
+  userId: string
+  userInteractionId?: string
+  coachInteractionId?: string
+  userProfile: UserProfile
+}) {
+  try {
+    if (!supabase) {
+      console.warn('Supabase no configurado, omitiendo procesamiento de memoria');
+      return;
+    }
+
+    // Obtener configuraciones del usuario para el contexto
+    const { data: userSettings } = await supabase
+      .from('user_settings')
+      .select('communication_tone, coaching_style')
+      .eq('user_id', userId)
+      .single();
+
+    // Procesar con IA para extraer información memorable
+    const extractions = await memoryProcessor.processConversation({
+      userMessage,
+      coachResponse,
+      userSettings: {
+        coaching_focus: userProfile.coaching_focus,
+        communication_tone: userSettings?.communication_tone
+      }
+    });
+
+    // Guardar cada extracción como memory_note
+    for (const extraction of extractions) {
+      if (extraction.shouldStore) {
+        await saveMemoryNote({
+          userId,
+          title: extraction.title,
+          content: extraction.content,
+          category: extraction.category,
+          tags: extraction.tags,
+          priority: extraction.priority,
+          sourceInteractionId: userInteractionId,
+          metadata: {
+            ...extraction.metadata,
+            extracted_at: new Date().toISOString(),
+            ai_processed: true,
+            source_interaction_id: userInteractionId
+          }
+        });
+
+        console.log(`💾 Memory note saved: ${extraction.category} - ${extraction.title}`);
+      }
+    }
+
+  } catch (error) {
+    console.error('Error processing memory extraction:', error);
+    // No fallar la conversación si hay error en memoria
+  }
+}
+
+// 🧠 NUEVA FUNCIÓN: Guardar memory note en la base de datos
+async function saveMemoryNote({
+  userId,
+  title,
+  content,
+  category,
+  tags,
+  priority,
+  sourceInteractionId,
+  metadata
+}: {
+  userId: string
+  title?: string
+  content: string
+  category: string
+  tags: string[]
+  priority: number
+  sourceInteractionId?: string
+  metadata: any
+}) {
+  if (!supabase) {
+    console.warn('Supabase no configurado, no se puede guardar memory note');
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from('memory_notes')
+    .insert({
+      user_id: userId,
+      title,
+      content,
+      category,
+      tags,
+      priority,
+      source_interaction_id: sourceInteractionId,
+      metadata
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error saving memory note:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+// 🧠 NUEVA FUNCIÓN: Obtener memoria relevante del usuario
+async function getRelevantMemory(userId: string, userMessage: string): Promise<any[]> {
+  try {
+    if (!supabase) return [];
+
+    // Buscar memory notes relevantes por keywords
+    const keywords = userMessage.toLowerCase().split(' ').filter(word => word.length > 3);
+    
+    if (keywords.length === 0) return [];
+
+    // Buscar en títulos y contenido
+    const searchTerms = keywords.slice(0, 3); // Limitar para evitar queries muy complejas
+    
+    let query = supabase
+      .from('memory_notes')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('status', 'active');
+
+    // Crear condición OR para buscar en title y content
+    const searchConditions = searchTerms.map(term => 
+      `title.ilike.%${term}%,content.ilike.%${term}%`
+    ).join(',');
+
+    if (searchConditions) {
+      query = query.or(searchConditions);
+    }
+
+    const { data, error } = await query
+      .order('priority', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(3);
+
+    if (error) {
+      console.error('Error fetching relevant memory:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in getRelevantMemory:', error);
+    return [];
   }
 }
 
@@ -138,13 +315,13 @@ async function findOrCreateUser(phoneNumber: string, profileName?: string): Prom
 }
 
 // Guardar mensaje en la base de datos
-async function saveMessage(message: ConversationMessage): Promise<void> {
+async function saveMessage(message: ConversationMessage): Promise<ConversationMessage | undefined> {
   if (!supabase) {
     console.warn('Supabase no está configurado, no se puede guardar mensaje');
     return;
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('whatsapp_interactions')
     .insert({
       user_id: message.user_id,
@@ -157,11 +334,15 @@ async function saveMessage(message: ConversationMessage): Promise<void> {
         timestamp: new Date().toISOString(),
         ...message.metadata
       }
-    });
+    })
+    .select()
+    .single();
 
   if (error) {
     throw new Error(`Error guardando mensaje: ${error.message}`);
   }
+
+  return data;
 }
 
 // Obtener historial de conversación
@@ -196,13 +377,25 @@ async function getConversationHistory(userId: string, limit: number = 20): Promi
   })) || [];
 }
 
-// Generar respuesta del coach usando OpenAI API directamente
+// Generar respuesta del coach usando OpenAI API directamente - MEJORADO con memoria
 async function generateCoachResponse(
   userMessage: string, 
   conversationHistory: ConversationMessage[],
   user: UserProfile
 ): Promise<string> {
   try {
+    // 🧠 NUEVO: Obtener memoria relevante del usuario
+    const relevantMemory = await getRelevantMemory(user.id, userMessage);
+    
+    // Construir contexto con memoria
+    let memoryContext = '';
+    if (relevantMemory.length > 0) {
+      memoryContext = '\n\nInformación relevante sobre el usuario:\n' + 
+        relevantMemory.map(note => 
+          `- ${note.category.toUpperCase()}: ${note.title || note.content.substring(0, 100)}`
+        ).join('\n');
+    }
+
     // Construir contexto de la conversación
     const messages = [
       {
@@ -213,9 +406,12 @@ async function generateCoachResponse(
         Características del usuario:
         - Nombre: ${user.name || 'No especificado'}
         - Teléfono: ${user.phone_number}
+        ${memoryContext}
         
         Responde de manera empática, motivadora y práctica. Mantén tus respuestas concisas 
-        pero significativas, ideales para WhatsApp (máximo 2-3 párrafos).`
+        pero significativas, ideales para WhatsApp (máximo 2-3 párrafos). 
+        
+        Si tienes información previa del usuario, úsala para personalizar tu respuesta.`
       },
       // Agregar historial de conversación
       ...conversationHistory.slice(-10).map(msg => ({
