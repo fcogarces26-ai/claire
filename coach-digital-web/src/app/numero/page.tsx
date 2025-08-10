@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
@@ -25,9 +25,6 @@ interface WhatsAppStats {
   lastMessageDate: string | null
   isActive: boolean
 }
-
-// Países con sus códigos de área (movido dentro de la función donde se usa)
-// const countries = [...] - removido porque no se usa
 
 export default function NumeroPage() {
   const [user, setUser] = useState<User | null>(null)
@@ -65,6 +62,29 @@ export default function NumeroPage() {
     return null
   }
 
+  // Convertir a useCallback para evitar warnings de dependencias
+  const loadWhatsAppStatsInternal = useCallback(async (userId: string) => {
+    try {
+      const { data: interactions } = await supabase
+        .from('whatsapp_interactions')
+        .select('created_at, message_type')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+
+      const totalMessages = interactions?.length || 0
+      const lastMessageDate = interactions?.[0]?.created_at || null
+      const isActive = totalMessages > 0 && profile.whatsapp_verified
+
+      setStats({
+        totalMessages,
+        lastMessageDate,
+        isActive
+      })
+    } catch (error) {
+      console.error('Error loading WhatsApp stats:', error)
+    }
+  }, [supabase, profile.whatsapp_verified])
+
   useEffect(() => {
     const loadUserData = async () => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -101,29 +121,7 @@ export default function NumeroPage() {
     }
     
     loadUserData()
-  }, [supabase, router]) // Removemos loadWhatsAppStats de las dependencias
-
-  const loadWhatsAppStatsInternal = async (userId: string) => {
-    try {
-      const { data: interactions } = await supabase
-        .from('whatsapp_interactions')
-        .select('created_at, message_type')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-
-      const totalMessages = interactions?.length || 0
-      const lastMessageDate = interactions?.[0]?.created_at || null
-      const isActive = totalMessages > 0 && profile.whatsapp_verified
-
-      setStats({
-        totalMessages,
-        lastMessageDate,
-        isActive
-      })
-    } catch (error) {
-      console.error('Error loading WhatsApp stats:', error)
-    }
-  }
+  }, [supabase, router, loadWhatsAppStatsInternal])
 
   const handlePhoneVerification = async (phoneNumber: string) => {
     if (!user) return

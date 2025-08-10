@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Smartphone, Loader2, Trash2 } from 'lucide-react';
-import { createClient } from '@/lib/supabase';
 
 interface Message {
   id: string;
@@ -41,7 +40,6 @@ export default function ChatSimulator({
   const [phoneNumber, setPhoneNumber] = useState(userPhoneNumber || '+1234567890');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  // const supabase = createClient(); // Removido porque no se usa actualmente
 
   // Actualizar phoneNumber cuando cambie userPhoneNumber
   useEffect(() => {

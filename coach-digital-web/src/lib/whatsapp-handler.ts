@@ -91,7 +91,7 @@ export async function handleIncomingMessage(twilioData: IncomingWhatsAppMessage)
       coachResponse,
       userId: user.id,
       userInteractionId: userInteraction?.id,
-      coachInteractionId: coachInteraction?.id,
+      _coachInteractionId: coachInteraction?.id,
       userProfile: user
     });
 
@@ -108,14 +108,14 @@ async function processMemoryExtraction({
   coachResponse,
   userId,
   userInteractionId,
-  coachInteractionId,
+  _coachInteractionId,
   userProfile
 }: {
   userMessage: string
   coachResponse: string
   userId: string
   userInteractionId?: string
-  coachInteractionId?: string
+  _coachInteractionId?: string
   userProfile: UserProfile
 }) {
   try {
@@ -188,7 +188,7 @@ async function saveMemoryNote({
   tags: string[]
   priority: number
   sourceInteractionId?: string
-  metadata: any
+  metadata: Record<string, unknown>
 }) {
   if (!supabase) {
     console.warn('Supabase no configurado, no se puede guardar memory note');
@@ -219,7 +219,7 @@ async function saveMemoryNote({
 }
 
 // 🧠 NUEVA FUNCIÓN: Obtener memoria relevante del usuario
-async function getRelevantMemory(userId: string, userMessage: string): Promise<any[]> {
+async function getRelevantMemory(userId: string, userMessage: string): Promise<Record<string, unknown>[]> {
   try {
     if (!supabase) return [];
 
@@ -392,7 +392,7 @@ async function generateCoachResponse(
     if (relevantMemory.length > 0) {
       memoryContext = '\n\nInformación relevante sobre el usuario:\n' + 
         relevantMemory.map(note => 
-          `- ${note.category.toUpperCase()}: ${note.title || note.content.substring(0, 100)}`
+          `- ${(note.category as string).toUpperCase()}: ${note.title || (note.content as string).substring(0, 100)}`
         ).join('\n');
     }
 

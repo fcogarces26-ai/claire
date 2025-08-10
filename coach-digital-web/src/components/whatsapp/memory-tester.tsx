@@ -10,8 +10,8 @@ interface MemoryNote {
   category: string
   tags: string[]
   priority: number
-  metadata: any
-  created_at: string
+// En src/components/whatsapp/memory-tester.tsx línea 13:
+metadata: Record<string, unknown>  // Cambiar 'any' por esto  created_at: string
 }
 
 interface ProcessResult {
