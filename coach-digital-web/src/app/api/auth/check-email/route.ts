@@ -18,13 +18,6 @@ export async function POST(request: NextRequest) {
     
     console.log('🔍 Verificando disponibilidad del email:', email)
 
-    // Verificar en auth.users (tabla principal de autenticación)
-    const { data: authUsers, error: authError } = await supabase
-      .from('auth.users')
-      .select('email')
-      .eq('email', email.trim().toLowerCase())
-      .limit(1)
-
     // Como no podemos acceder directamente a auth.users, verificamos en user_profiles
     const { data: profileUsers, error: profileError } = await supabase
       .from('user_profiles')
