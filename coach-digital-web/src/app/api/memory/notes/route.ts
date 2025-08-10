@@ -154,7 +154,8 @@ export async function PUT(request: NextRequest) {
     }
 
     // Preparar datos para actualizar (solo campos proporcionados)
-    const updateData: any = {}
+    const updateData: Record<string, unknown> = {}
+
     
     if (title !== undefined) updateData.title = title?.trim() || null
     if (content !== undefined) {

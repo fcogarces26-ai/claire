@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
@@ -35,6 +35,45 @@ export default function Dashboard() {
   const router = useRouter()
   const supabase = createClient()
 
+  // Convertir loadDashboardStats a useCallback para evitar warnings de dependencias
+  const loadDashboardStats = useCallback(async (userId: string) => {
+    try {
+      // Cargar estadísticas de WhatsApp
+      const { data: whatsappData } = await supabase
+        .from('whatsapp_interactions')
+        .select('created_at, message_type')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+
+      // Cargar estadísticas de memory notes
+      const { data: memoryData } = await supabase
+        .from('memory_notes')
+        .select('id, status, category')
+        .eq('user_id', userId)
+
+      const whatsappMessages = whatsappData?.length || 0
+      const lastMessage = whatsappData?.[0]?.created_at || null
+      const savedNotes = memoryData?.filter(note => note.status === 'active').length || 0
+      const completedGoals = memoryData?.filter(note => note.category === 'goals' && note.status === 'completed').length || 0
+
+      // Calcular días activos basado en fechas de mensajes únicos
+      const uniqueDays = new Set(
+        whatsappData?.map(msg => new Date(msg.created_at).toDateString()) || []
+      )
+      const activeDays = Math.max(1, uniqueDays.size)
+
+      setStats({
+        savedNotes,
+        activeDays,
+        completedGoals,
+        whatsappMessages,
+        lastMessageDate: lastMessage
+      })
+    } catch (error) {
+      console.error('Error loading dashboard stats:', error)
+    }
+  }, [supabase])
+
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -48,33 +87,7 @@ export default function Dashboard() {
     }
     
     getUser()
-  }, [supabase.auth, router]) // Removemos loadDashboardStats de las dependencias
-
-  const loadDashboardStats = async (userId: string) => {
-    try {
-      // Cargar estadísticas de WhatsApp
-      const { data: whatsappData } = await supabase
-        .from('whatsapp_interactions')
-        .select('created_at, message_type')
-        .eq('user_id', userId)
-
-      const whatsappMessages = whatsappData?.length || 0
-      const lastMessage = whatsappData?.[0]?.created_at || null
-
-      // Aquí puedes agregar más consultas para otras estadísticas
-      // Por ejemplo: notas guardadas, metas completadas, etc.
-
-      setStats({
-        savedNotes: 0, // Implementar cuando tengas la tabla de notas
-        activeDays: 1,
-        completedGoals: 0, // Implementar cuando tengas la tabla de metas
-        whatsappMessages,
-        lastMessageDate: lastMessage
-      })
-    } catch (error) {
-      console.error('Error loading dashboard stats:', error)
-    }
-  }
+  }, [supabase.auth, router, loadDashboardStats]) // Ahora incluye loadDashboardStats sin warnings
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -146,7 +159,7 @@ export default function Dashboard() {
                 <div className="bg-green-50 border border-green-200 rounded-lg p-6 hover:bg-green-100 transition-colors cursor-pointer">
                   <div className="text-3xl mb-2">🧠</div>
                   <h3 className="font-semibold text-green-900">Memoria</h3>
-                  <p className="text-sm text-green-700">Guarda tus pensamientos</p>
+                  <p className="text-sm text-green-700">Revisa tu historial</p>
                 </div>
               </Link>
               
@@ -167,16 +180,19 @@ export default function Dashboard() {
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Notas Guardadas</h3>
               <p className="text-3xl font-bold text-blue-600">{stats.savedNotes}</p>
+              <p className="text-xs text-gray-500 mt-1">Memoria activa</p>
             </div>
             
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Días Activo</h3>
               <p className="text-3xl font-bold text-green-600">{stats.activeDays}</p>
+              <p className="text-xs text-gray-500 mt-1">Días únicos con actividad</p>
             </div>
             
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Metas Completadas</h3>
               <p className="text-3xl font-bold text-purple-600">{stats.completedGoals}</p>
+              <p className="text-xs text-gray-500 mt-1">Objetivos logrados</p>
             </div>
 
             <div className="bg-white rounded-lg shadow p-6">
@@ -189,7 +205,7 @@ export default function Dashboard() {
           </div>
 
           {/* WhatsApp Status */}
-          {stats.whatsappMessages > 0 && (
+          {stats.whatsappMessages > 0 ? (
             <div className="mt-8 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg shadow p-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -203,6 +219,24 @@ export default function Dashboard() {
                 <Link href="/numero">
                   <Button variant="outline">
                     Gestionar
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-8 bg-gradient-to-r from-orange-50 to-yellow-50 rounded-lg shadow p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    Configura WhatsApp 📱
+                  </h3>
+                  <p className="text-gray-600">
+                    Conecta tu número para comenzar a recibir coaching personalizado
+                  </p>
+                </div>
+                <Link href="/numero">
+                  <Button className="bg-green-600 hover:bg-green-700">
+                    Configurar
                   </Button>
                 </Link>
               </div>
